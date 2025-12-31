@@ -75,6 +75,14 @@ async def get_status_checks():
         r["timestamp"] = datetime.fromisoformat(r["timestamp"])
     return records
 
+@api_router.delete("/status/reset")
+async def reset_status():
+    result = await db.status_checks.delete_many({})
+    return {
+        "message": "Surprise reset successfully",
+        "deleted_count": result.deleted_count
+    }
+
 # -------------------------------------------------
 # Middleware
 # -------------------------------------------------
