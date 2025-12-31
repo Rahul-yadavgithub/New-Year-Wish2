@@ -68,6 +68,37 @@ export const MessageSequence = () => {
             duration: 1
           });
         }
+
+        // --- Cinematic scroll arrow animation (repeatable) ---
+        const arrowEl = messageEl.parentElement.querySelector('.scroll-arrow');
+        if (arrowEl) {
+          // Start hidden
+          gsap.set(arrowEl, { opacity: 0, y: 18, scale: 0.92 });
+
+          const arrowTl = gsap.timeline({ paused: true });
+          arrowTl.fromTo(
+            arrowEl,
+            { opacity: 0, y: 18, scale: 0.9, filter: 'blur(6px)' },
+            { opacity: 1, y: 0, scale: 1.06, filter: 'blur(0px)', duration: 0.6, ease: 'power3.out' }
+          );
+
+          arrowTl.to(
+            arrowEl,
+            { opacity: 0, y: -12, scale: 0.95, duration: 0.7, ease: 'power2.in' }, '+=0.35'
+          );
+
+          // Trigger the arrow animation when the card enters view and when entering back (so it repeats)
+          ScrollTrigger.create({
+            trigger: messageEl,
+            start: 'top 90%',
+            end: 'top 35%',
+            markers: false,
+            onEnter: () => arrowTl.restart(),
+            onEnterBack: () => arrowTl.restart(),
+            onLeave: () => gsap.to(arrowEl, { opacity: 0, duration: 0.25 }),
+            onLeaveBack: () => gsap.to(arrowEl, { opacity: 0, duration: 0.25 })
+          });
+        }
       });
 
       // Final message trigger
@@ -101,8 +132,18 @@ export const MessageSequence = () => {
       {messages.map((message, index) => (
         <div
           key={message.id}
-          className="min-h-screen flex items-center justify-center px-6 py-20"
+          className="min-h-screen flex items-center justify-center px-6 py-20 relative"
         >
+          {/* Cinematic scroll arrow (appears when this card scrolls into view) */}
+          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none">
+            <div className="scroll-arrow w-12 h-12 text-white/95" style={{ filter: 'drop-shadow(0 14px 40px rgba(255,215,0,0.12))' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+                <path d="M12 5v12" />
+                <path d="M19 12l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
           <div
             ref={el => messageRefs.current[index] = el}
             className="glass max-w-3xl w-full p-8 md:p-12 rounded-3xl"
