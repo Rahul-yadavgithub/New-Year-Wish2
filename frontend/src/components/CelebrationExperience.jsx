@@ -14,6 +14,7 @@ export const CelebrationExperience = () => {
   const burstGlowRef = useRef(null);
   const nameRef = useRef(null);
   const finalMessageRef = useRef(null);
+  const heroRef = useRef(null);
   const hasStartedRef = useRef(false);
   const audioReadyRef = useRef(false);
 
@@ -45,10 +46,19 @@ export const CelebrationExperience = () => {
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('touchstart', handleFirstInteraction);
       audioEngineRef.current?.stopAll();
+      // Restore scrolling if component unmounts
+      try { document.body.style.overflow = ''; } catch (e) {}
+      if (heroRef.current) {
+        heroRef.current.style.display = '';
+        heroRef.current.style.opacity = '';
+      }
     };
   }, []);
 
   const buildMasterTimeline = () => {
+    // Prevent user scrolling during the intro to avoid message overlap
+    try { document.body.style.overflow = 'hidden'; } catch (e) {}
+
     const master = gsap.timeline({
       onComplete: () => {
         // Mark experience as viewed
@@ -59,6 +69,19 @@ export const CelebrationExperience = () => {
         
         // Fade out all audio
         audioEngineRef.current?.stopAll();
+
+        // Restore scrolling
+        try { document.body.style.overflow = ''; } catch (e) {}
+
+        // Hide the hero container with a fade so the messages become fully visible and accessible
+        if (heroRef.current) {
+          gsap.to(heroRef.current, {
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power2.inOut',
+            onComplete: () => { try { heroRef.current.style.display = 'none'; } catch (e) {} }
+          });
+        }
       }
     });
 
@@ -176,7 +199,7 @@ export const CelebrationExperience = () => {
       />
 
       {/* Happy New Year + Dear Manisha (stacked) */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
+      <div ref={heroRef} className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
         <div className="flex flex-col items-center gap-6">
           <HappyNewYearText />
 
