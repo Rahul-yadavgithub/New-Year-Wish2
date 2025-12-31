@@ -1,89 +1,106 @@
 from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List
-import uuid
+from pathlib import Path
 from datetime import datetime, timezone
+import os
+import uuid
+import logging
+from dotenv import load_dotenv
 
-
+# -------------------------------------------------
+# Load environment variables (local only)
+# -------------------------------------------------
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# -------------------------------------------------
+# Validate environment variables SAFELY
+# -------------------------------------------------
+MONGO_URL = os.getenv("MONGO_URL")
+DB_NAME = os.getenv("DB_NAME")
 
-# Create the main app without a prefix
+if not MONGO_URL:
+    raise RuntimeError("MONGO_URL is not set")
+
+if not DB_NAME:
+    raise RuntimeError("DB_NAME is not set")
+
+# -------------------------------------------------
+# App initialization
+# -------------------------------------------------
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# -------------------------------------------------
+# MongoDB (initialized safely)
+# -------------------------------------------------
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
 
-# Define Models
+# -------------------------------------------------
+# Models
+# -------------------------------------------------
 class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
+    model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class StatusCheckCreate(BaseModel):
     client_name: str
 
-# Add your routes to the router instead of directly to app
+# -------------------------------------------------
+# Routes
+# -------------------------------------------------
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+    status = StatusCheck(**input.model_dump())
+    doc = status.model_dump()
+    doc["timestamp"] = doc["timestamp"].isoformat()
+    await db.status_checks.insert_one(doc)
+    return status
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+    records = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+    for r in records:
+        r["timestamp"] = datetime.fromisoformat(r["timestamp"])
+    return records
 
-# Include the router in the main app
-app.include_router(api_router)
+# -------------------------------------------------
+# Middleware
+# -------------------------------------------------
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# -------------------------------------------------
+# Router registration
+# -------------------------------------------------
+app.include_router(api_router)
 
+# -------------------------------------------------
+# Shutdown cleanup
+# -------------------------------------------------
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()
+
+# -------------------------------------------------
+# Logging
+# -------------------------------------------------
+logging.basicConfig(level=logging.INFO)
