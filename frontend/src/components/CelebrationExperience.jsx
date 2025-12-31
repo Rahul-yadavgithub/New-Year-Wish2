@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import FirecrackerParticles from './FirecrackerParticles';
@@ -16,6 +16,8 @@ export const CelebrationExperience = () => {
   const finalMessageRef = useRef(null);
   const hasStartedRef = useRef(false);
   const audioReadyRef = useRef(false);
+  const masterRef = useRef(null); // keep timeline to check progress
+  const [audioEnabled, setAudioEnabled] = useState(false);
 
   useEffect(() => {
     // Initialize audio engine
@@ -27,7 +29,19 @@ export const CelebrationExperience = () => {
         const success = await audioEngineRef.current.resumeContext();
         if (success) {
           audioReadyRef.current = true;
+          setAudioEnabled(true);
           console.log('✅ Audio ready - firecracker burst enabled');
+
+          // If the master timeline already passed the music cue (1.8s), start music immediately
+          try {
+            const master = masterRef.current;
+            if (master && master.time() > 1.8) {
+              audioEngineRef.current.playBackgroundMusic();
+              console.log('🔊 Background music triggered after user gesture');
+            }
+          } catch (e) {
+            // ignore if timeline is not available yet
+          }
         }
       }
     };
@@ -49,7 +63,7 @@ export const CelebrationExperience = () => {
   }, []);
 
   const buildMasterTimeline = () => {
-    const master = gsap.timeline({
+    masterRef.current = gsap.timeline({
       onComplete: () => {
         // Mark experience as viewed
         const timestamp = new Date().toISOString();
@@ -61,6 +75,7 @@ export const CelebrationExperience = () => {
         audioEngineRef.current?.stopAll();
       }
     });
+    const master = masterRef.current;
 
     // [0s - 0.3s] Black screen silence (user gesture buffer)
     master.set('body', { backgroundColor: 'hsl(240 12% 6%)' }, 0);
@@ -100,6 +115,9 @@ export const CelebrationExperience = () => {
       if (audioReadyRef.current && audioEngineRef.current) {
         audioEngineRef.current.playBackgroundMusic(); // 🎶 Gentle music
         console.log('🎵 Background music started');
+      } else {
+        // If audio is not ready yet, we'll wait until the user enables it and trigger music then
+        console.log('🎵 Background music queued until audio is enabled');
       }
     }, null, 1.8);
 
@@ -176,8 +194,8 @@ export const CelebrationExperience = () => {
       />
 
       {/* Happy New Year + Dear Manisha (stacked) */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
-        <div className="flex flex-col items-center gap-6">
+      <div className="fixed inset-0 flex items-center justify-center z-40">
+        <div className="flex flex-col items-center gap-6 pointer-events-none">
           <HappyNewYearText />
 
           <p
@@ -192,6 +210,24 @@ export const CelebrationExperience = () => {
           </p>
         </div>
       </div>
+
+      {/* Audio enable overlay (visible until user enables audio) */}
+      { !audioEnabled && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center"
+          style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.6), rgba(0,0,0,0.2))' }}
+        >
+          <button
+            onClick={handleFirstInteraction}
+            className="bg-white/8 backdrop-blur-sm text-white border border-white/30 px-6 py-3 rounded-lg text-lg md:text-xl shadow-lg"
+            style={{ cursor: 'pointer' }}
+            aria-label="Enable sound and start experience"
+          >
+            🔊 Tap to enable sound
+          </button>
+        </div>
+      ) }
+
 
       {/* Scrollable Message Sequence */}
       <MessageSequence />
