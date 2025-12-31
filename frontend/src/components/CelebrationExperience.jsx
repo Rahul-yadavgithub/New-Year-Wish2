@@ -103,29 +103,29 @@ export const CelebrationExperience = () => {
       }
     }, null, 1.8);
 
-    // [3.5s] "Dear Manisha" reveal
+    // [3.5s] "Dear Manisha" reveal (cinematic from below)
     if (nameRef.current) {
-      master.from(nameRef.current, {
-        opacity: 0,
-        y: 30,
-        duration: 1.2,
-        ease: 'power2.out'
-      }, 3.5);
+      master.fromTo(
+        nameRef.current,
+        { opacity: 0, y: 40, scale: 0.98, filter: 'blur(8px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 1.2, ease: 'power3.out' },
+        3.5
+      );
 
       master.to(nameRef.current, {
         color: 'hsl(43 74% 49%)',
         textShadow: '0 0 20px rgba(255, 215, 0, 0.6)',
         duration: 0.8,
         ease: 'power1.inOut'
-      }, 3.7);
+      }, 3.8);
 
       master.to(nameRef.current, {
-        scale: 1.08,
-        duration: 0.8,
+        scale: 1.06,
+        duration: 0.9,
         ease: 'sine.inOut',
         yoyo: true,
         repeat: 1
-      }, 4.2);
+      }, 4.3);
     }
 
     // [6s] Fade out name and enable scroll
@@ -175,23 +175,22 @@ export const CelebrationExperience = () => {
         }}
       />
 
-      {/* Happy New Year Text */}
+      {/* Happy New Year + Dear Manisha (stacked) */}
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
-        <HappyNewYearText />
-      </div>
+        <div className="flex flex-col items-center gap-6">
+          <HappyNewYearText />
 
-      {/* Dear Manisha Name */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-30">
-        <p
-          ref={nameRef}
-          className="text-3xl md:text-5xl lg:text-6xl font-light tracking-wider text-center px-4"
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            color: 'hsl(0 0% 98%)'
-          }}
-        >
-          Dear Manisha ✨
-        </p>
+          <p
+            ref={nameRef}
+            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light tracking-wider text-center px-4 opacity-0"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              color: 'hsl(0 0% 98%)'
+            }}
+          >
+            Dear Manisha ✨
+          </p>
+        </div>
       </div>
 
       {/* Scrollable Message Sequence */}
