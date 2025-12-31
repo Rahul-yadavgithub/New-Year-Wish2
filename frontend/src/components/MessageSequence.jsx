@@ -27,55 +27,35 @@ const messages = [
   }
 ];
 
-// --- Sub-Component: The Cinematic Pipe ---
-const DataPipe = () => {
+// --- Sub-Component: The Cinematic Pipe (parent-controlled) ---
+const DataPipe = React.forwardRef((props, ref) => {
   const containerRef = useRef(null);
   const pathRef = useRef(null);
   const glowRef = useRef(null);
 
   useEffect(() => {
-    const container = containerRef.current;
     const path = pathRef.current;
     const glow = glowRef.current;
 
-    // Set initial state
+    if (!path) return;
+
+    // Set initial state (stroke length etc.) — parent will drive the animation
     const pathLength = path.getTotalLength();
     gsap.set(path, { strokeDasharray: pathLength, strokeDashoffset: pathLength });
-    gsap.set(glow, { opacity: 0 });
-
-    const tl = gsap.timeline({
-      scrollTrigger: {
-        trigger: container,
-        start: "top 75%", // Start filling when pipe enters bottom 1/4 of screen
-        end: "bottom 55%", // Finish filling when pipe is center-screen
-        scrub: 1, // Smooth scrubbing linked to scroll
-      }
-    });
-
-    // 1. Fade in the glow particle
-    tl.to(glow, { opacity: 1, duration: 0.1 })
-      // 2. Animate the line filling up and the particle moving down together
-      .to([path, glow], {
-        strokeDashoffset: 0, // Fills the line
-        motionPath: {
-            path: path,
-            align: path,
-            alignOrigin: [0.5, 0.5]
-        },
-        duration: 2,
-        ease: "none" // Linear because scroll scrubbing handles the easing
-      })
-      // 3. Move the glow particle down (alternative to motionPath plugin if not installed)
-      .to(glow, {
-          y: 160, // Matches the SVG height roughly
-          ease: "none",
-          duration: 2
-      }, "<");
+    gsap.set(glow, { opacity: 0, y: 0 });
 
     return () => {
-      // Cleanup happens automatically via ScrollTrigger but good practice
+      // nothing else here — parent timeline will be responsible for ScrollTrigger
     };
   }, []);
+
+  // Expose refs and useful values to the parent via imperative handle
+  React.useImperativeHandle(ref, () => ({
+    container: containerRef.current,
+    path: pathRef.current,
+    glow: glowRef.current,
+    getPathLength: () => pathRef.current ? pathRef.current.getTotalLength() : 0
+  }), []);
 
   return (
     <div ref={containerRef} className="h-40 w-full flex justify-center items-center relative overflow-visible my-2">
@@ -128,47 +108,23 @@ const DataPipe = () => {
       </svg>
     </div>
   );
-};
+});
+
+DataPipe.displayName = 'DataPipe';
 
 // --- Sub-Component: The Message Card ---
-const MessageCard = ({ data, index }) => {
-  const cardRef = useRef(null);
-
-  useEffect(() => {
-    const el = cardRef.current;
-    
-    gsap.fromTo(el, 
-      { 
-        opacity: 0, 
-        y: 50,
-        scale: 0.95,
-        filter: "blur(10px)"
-      },
-      {
-        scrollTrigger: {
-          trigger: el,
-          start: "top 85%", // Triggers right after the pipe connects
-          end: "top 40%",
-          scrub: 1,
-          toggleActions: "play reverse play reverse"
-        },
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        filter: "blur(0px)",
-        duration: 1,
-        ease: "power2.out"
-      }
-    );
-  }, []);
-
+const MessageCard = ({ data, index, forwardedRef }) => {
+  // The parent will control the scroll-triggered timeline for sequencing (no own ScrollTrigger)
   return (
     <div className="flex justify-center w-full px-6 relative z-10">
       <div
-        ref={cardRef}
+        ref={forwardedRef}
         className="glass max-w-3xl w-full p-8 md:p-12 rounded-3xl border border-white/10 bg-black/20 backdrop-blur-xl"
         style={{
           boxShadow: '0 20px 50px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+          opacity: 0,
+          transform: 'translateY(50px) scale(0.95)',
+          filter: 'blur(10px)'
         }}
       >
         <div className="text-center">
@@ -190,29 +146,77 @@ const MessageCard = ({ data, index }) => {
 // --- Main Sequence Component ---
 export const MessageSequence = () => {
   const finalRef = useRef(null);
+  const groupRefs = useRef([]);
+  const messageRefs = useRef([]);
+  const pipeRefs = useRef([]);
 
   useEffect(() => {
-    // Final text animation
-    if (finalRef.current) {
-      gsap.fromTo(finalRef.current,
-        { opacity: 0, scale: 0.8, filter: "blur(20px)" },
-        {
-          scrollTrigger: {
-            trigger: finalRef.current,
-            start: "top 80%",
-            end: "bottom 80%",
-            scrub: 1.5
-          },
-          opacity: 1,
-          scale: 1,
-          filter: "blur(0px)",
-          ease: "circ.out"
+    // Build a grouped timeline per message + pipe pair so the message animate first
+    // and the pipe fill starts only when the message's reveal is complete.
+    const created = [];
+
+    messages.forEach((_, index) => {
+      const groupEl = groupRefs.current[index];
+      const msgEl = messageRefs.current[index];
+      const pipeRef = pipeRefs.current[index]; // pipe after this message
+
+      if (!groupEl || !msgEl) return;
+
+      // Determine an appropriate scroll length: one and a quarter viewport height
+      const scrollLength = Math.max(window.innerHeight * 1.25, 800);
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: groupEl,
+          start: 'top 85%',
+          end: `+=${Math.round(scrollLength)}`,
+          scrub: true,
+          markers: false
         }
+      });
+
+      // 1) Message reveal portion (first ~40% of timeline)
+      tl.fromTo(msgEl, 
+        { opacity: 0, y: 50, scale: 0.95, filter: 'blur(10px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', ease: 'power2.out', duration: 0.6 }
       );
+
+      // 2) Pipe portion (starts after message has revealed)
+      if (pipeRef && pipeRef.path) {
+        const pathEl = pipeRef.path;
+        const glowEl = pipeRef.glow;
+        const pathLength = pipeRef.getPathLength();
+
+        // Ensure initial strokeDashoffset is set (redundant-safe)
+        gsap.set(pathEl, { strokeDasharray: pathLength, strokeDashoffset: pathLength });
+        gsap.set(glowEl, { opacity: 0, y: 0 });
+
+        // Add a slight gap and then animate pipe fill over the rest of the timeline
+        tl.to(pathEl, { strokeDashoffset: 0, ease: 'none', duration: 1 }, '+=0.1');
+        tl.to(glowEl, { opacity: 1, y: 160, ease: 'none', duration: 1 }, '<');
+      }
+
+      created.push(tl);
+    });
+
+    // Final conclusion animation (separate timeline)
+    if (finalRef.current) {
+      const finalTl = gsap.timeline({
+        scrollTrigger: {
+          trigger: finalRef.current,
+          start: 'top 80%',
+          end: 'bottom 80%',
+          scrub: 1.5,
+          markers: false
+        }
+      });
+
+      finalTl.fromTo(finalRef.current, { opacity: 0, scale: 0.8, filter: 'blur(20px)' }, { opacity: 1, scale: 1, filter: 'blur(0px)', ease: 'circ.out' });
+      created.push(finalTl);
     }
-    
+
     // Cleanup
-    return () => ScrollTrigger.getAll().forEach(t => t.kill());
+    return () => created.forEach(tl => tl.kill()) || ScrollTrigger.getAll().forEach(t => t.kill());
   }, []);
 
   return (
@@ -223,22 +227,23 @@ export const MessageSequence = () => {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-900/20 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative z-10 pt-[50vh] pb-[50vh] flex flex-col items-center">
-        
+      <div className="relative z-10 flex flex-col items-center">
         {messages.map((message, index) => (
           <React.Fragment key={message.id}>
-            {/* The Message Box */}
-            <MessageCard data={message} index={index} />
+            <div ref={el => groupRefs.current[index] = el} className="w-full flex flex-col items-center">
+              {/* The Message Box */}
+              <MessageCard data={message} index={index} forwardedRef={el => messageRefs.current[index] = el} />
 
-            {/* Render Pipe ONLY if it's not the last item */}
-            {index < messages.length - 1 && (
-              <DataPipe />
-            )}
+              {/* Render Pipe ONLY if it's not the last item */}
+              {index < messages.length - 1 && (
+                <DataPipe ref={el => pipeRefs.current[index] = el} />
+              )}
+            </div>
           </React.Fragment>
         ))}
 
         {/* Final Pipe to Conclusion */}
-        <DataPipe />
+        <DataPipe ref={el => pipeRefs.current[messages.length - 1] = el} />
 
         {/* Final Conclusion */}
         <div ref={finalRef} className="mt-10 px-6 text-center max-w-4xl relative z-10">
