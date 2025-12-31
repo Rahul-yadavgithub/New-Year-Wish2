@@ -17,7 +17,7 @@ const messages = [
   },
   {
     id: 3,
-    text: "This year, may your dreams take flight and your heart find all the joy it deserves. You are truly special, Manisha.",
+    text: "I don’t have a gift to give you, but I made this especially for you—so that, at least one last time, I could see a smile on your face. I truly always wanted you to be happy, but I never understood that all I needed to do was cherish a simple friendship. Even that, I couldn’t manage.So please accept this as my first and also my last gift to you.",
     icon: "🌟"
   },
   {
