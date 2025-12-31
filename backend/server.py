@@ -60,13 +60,34 @@ class StatusCheckCreate(BaseModel):
 async def root():
     return {"message": "Hello World"}
 
-@api_router.post("/status", response_model=StatusCheck)
+@api_router.post("/status")
 async def create_status_check(input: StatusCheckCreate):
-    status = StatusCheck(**input.model_dump())
-    doc = status.model_dump()
-    doc["timestamp"] = doc["timestamp"].isoformat()
+    existing = await db.status_checks.find_one(
+        {"client_name": input.client_name},
+        {"_id": 0}
+    )
+
+    if existing:
+        return {
+            "already_opened": True,
+            "message": f"{input.client_name} has already opened the surprise",
+            "data": existing
+        }
+
+    doc = {
+        "client_name": input.client_name,
+        "opened": True,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
     await db.status_checks.insert_one(doc)
-    return status
+
+    return {
+        "already_opened": False,
+        "message": f"Surprise opened for {input.client_name}",
+        "data": doc
+    }
+
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
