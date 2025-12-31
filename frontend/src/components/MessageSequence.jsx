@@ -7,7 +7,7 @@ gsap.registerPlugin(ScrollTrigger);
 const messages = [
   {
     id: 1,
-    text: "As we step into 2026, I want you to know that distance means nothing when someone means everything.",
+    text: "I’m truly sorry—I know I often make mistakes. I sincerely ask you to forgive me for my faults. I pray to God that you achieve great success in life. You are genuinely a wonderful person, and I miss you deeply",
     icon: "✨"
   },
   {
@@ -22,7 +22,7 @@ const messages = [
   },
   {
     id: 4,
-    text: "Thank you for being a beautiful part of my journey. Here's to new beginnings, endless possibilities, and the magic that 2026 holds.",
+    text: "Thank you, Manisha, for being a beautiful part of my journey. Goodbye, and Happy New Year—may 2026 bring you a new life filled with happiness, growth, and endless possibilities.",
     icon: "💖"
   }
 ];

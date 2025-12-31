@@ -15,17 +15,23 @@ export const CelebrationExperience = () => {
   const nameRef = useRef(null);
   const finalMessageRef = useRef(null);
   const hasStartedRef = useRef(false);
+  const audioReadyRef = useRef(false);
 
   useEffect(() => {
     // Initialize audio engine
     audioEngineRef.current = new AudioEngine();
 
     // Resume audio context on first user interaction
-    const handleFirstInteraction = () => {
+    const handleFirstInteraction = async () => {
       if (audioEngineRef.current) {
-        audioEngineRef.current.resumeContext();
+        const success = await audioEngineRef.current.resumeContext();
+        if (success) {
+          audioReadyRef.current = true;
+          console.log('✅ Audio ready - firecracker burst enabled');
+        }
       }
     };
+
     document.addEventListener('click', handleFirstInteraction, { once: true });
     document.addEventListener('touchstart', handleFirstInteraction, { once: true });
 
@@ -38,6 +44,7 @@ export const CelebrationExperience = () => {
     return () => {
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('touchstart', handleFirstInteraction);
+      audioEngineRef.current?.stopAll();
     };
   }, []);
 
@@ -48,24 +55,31 @@ export const CelebrationExperience = () => {
         const timestamp = new Date().toISOString();
         localStorage.setItem('newYear2026_celebration_viewed', 'true');
         localStorage.setItem('newYear2026_visit_timestamp', timestamp);
-        console.log('Experience completed and marked as visited.');
+        console.log('✨ Experience completed and marked as visited.');
+        
+        // Fade out all audio
+        audioEngineRef.current?.stopAll();
       }
     });
 
-    // [0s - 0.5s] Black screen silence with subtle anticipation
+    // [0s - 0.3s] Black screen silence (user gesture buffer)
     master.set('body', { backgroundColor: 'hsl(240 12% 6%)' }, 0);
     
-    // [0.5s] Firecracker burst
+    // [0.5s] 🔥 FIRECRACKER BURST (only if audio ready)
     master.call(() => {
-      if (audioEngineRef.current) {
-        audioEngineRef.current.playBurst();
+      if (audioReadyRef.current && audioEngineRef.current) {
+        audioEngineRef.current.playBurst(); // 💥 EXPLOSION!
+        console.log('💥 Firecracker burst played');
+      } else {
+        console.log('🔇 Audio not ready - skipping burst');
       }
+      
       if (particleSystemRef.current) {
         particleSystemRef.current.burst();
       }
     }, null, 0.5);
 
-    // Light flash effect
+    // 💥 Light flash effect (sync with audio)
     if (burstGlowRef.current) {
       master.to(burstGlowRef.current, { 
         opacity: 1, 
@@ -75,14 +89,20 @@ export const CelebrationExperience = () => {
       }, 0.5);
       master.to(burstGlowRef.current, { 
         opacity: 0, 
-        scale: 2,
-        duration: 1, 
-        ease: 'quad.inOut' 
+        scale: 2.5,
+        duration: 1.2, 
+        ease: 'power2.inOut' 
       }, 0.55);
     }
 
-    // [1.8s] "HAPPY NEW YEAR" text reveal handled by HappyNewYearText component
-    
+    // [1.8s] 🎵 HAPPY NEW YEAR text reveal + BACKGROUND MUSIC
+    master.call(() => {
+      if (audioReadyRef.current && audioEngineRef.current) {
+        audioEngineRef.current.playBackgroundMusic(); // 🎶 Gentle music
+        console.log('🎵 Background music started');
+      }
+    }, null, 1.8);
+
     // [3.5s] "Dear Manisha" reveal
     if (nameRef.current) {
       master.from(nameRef.current, {
@@ -122,25 +142,33 @@ export const CelebrationExperience = () => {
     master.call(() => {
       ScrollTrigger.refresh();
     }, null, 7);
-
-    // Final message appears after scrolling through all messages
-    // This is handled by scroll triggers in MessageSequence
   };
 
   return (
     <div className="relative w-full min-h-screen overflow-x-hidden" style={{
       background: 'linear-gradient(135deg, hsl(240 12% 6%) 0%, hsl(280 35% 20%) 50%, hsl(240 10% 8%) 100%)'
     }}>
+      {/* 🎵 Audio status indicator (remove in production) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 left-4 z-50 text-xs bg-black/50 text-white px-2 py-1 rounded opacity-75">
+          Audio: {audioReadyRef.current ? '✅ READY' : '⏳ waiting...'}
+        </div>
+      )}
+
       {/* Three.js Particle Canvas */}
       <FirecrackerParticles ref={particleSystemRef} />
 
       {/* Burst Glow Effect */}
       <div
         ref={burstGlowRef}
-        className="fixed top-1/2 left-1/2 w-64 h-64 pointer-events-none z-50"
+        className="fixed top-1/2 left-1/2 w-64 h-64 md:w-96 md:h-96 pointer-events-none z-50"
         style={{
           transform: 'translate(-50%, -50%)',
-          background: 'radial-gradient(circle, rgba(255,215,0,0.9), transparent)',
+          background: 'radial-gradient(circle closest-side, ' +
+            'rgba(255,215,0,0.95) 0%, ' +
+            'rgba(255,105,180,0.8) 25%, ' +
+            'rgba(138,43,226,0.6) 50%, ' +
+            'transparent 75%)',
           borderRadius: '50%',
           filter: 'blur(60px)',
           opacity: 0
@@ -156,7 +184,7 @@ export const CelebrationExperience = () => {
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-30">
         <p
           ref={nameRef}
-          className="text-3xl md:text-5xl font-light tracking-wider"
+          className="text-3xl md:text-5xl lg:text-6xl font-light tracking-wider text-center px-4"
           style={{
             fontFamily: "'Cormorant Garamond', serif",
             color: 'hsl(0 0% 98%)'
